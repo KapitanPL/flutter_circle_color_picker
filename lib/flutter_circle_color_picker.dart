@@ -6,6 +6,12 @@ import 'package:flutter/widgets.dart';
 
 typedef ColorCodeBuilder = Widget Function(BuildContext context, Color color);
 
+enum ColorPickerLayout {
+  stack,
+  row,
+  column,
+}
+
 class CircleColorPickerController extends ChangeNotifier {
   CircleColorPickerController({
     Color initialColor = const Color.fromARGB(255, 255, 0, 0),
@@ -34,6 +40,8 @@ class CircleColorPicker extends StatefulWidget {
       color: Colors.black,
     ),
     this.colorCodeBuilder,
+    this.colorPickerLayout = ColorPickerLayout.stack,
+    this.displayCentralDot = true,
   }) : super(key: key);
 
   /// Called during a drag when the user is selecting a color.
@@ -79,6 +87,17 @@ class CircleColorPicker extends StatefulWidget {
   /// Default is Text widget that shows rgb strings;
   final ColorCodeBuilder? colorCodeBuilder;
 
+  /// Enum to choose picker layout
+  /// This allows to set widget layouting to better accomodate space
+  ///
+  /// Default value is CircleColorPickerLayout.stack
+  final ColorPickerLayout? colorPickerLayout;
+
+  /// Central dot showing color might not be needed
+  ///
+  /// Default is true
+  final bool displayCentralDot;
+
   Color get initialColor =>
       controller?.color ?? const Color.fromARGB(255, 255, 0, 0);
 
@@ -104,75 +123,115 @@ class _CircleColorPickerState extends State<CircleColorPicker>
     ).toColor();
   }
 
+  Widget getLayoutWidget(List<Widget> children) {
+    switch (widget.colorPickerLayout) {
+      case ColorPickerLayout.stack:
+        {
+          return Stack(
+            children: children,
+          );
+        }
+      case ColorPickerLayout.column:
+        {
+          return Column(
+            children: children,
+          );
+        }
+      case ColorPickerLayout.row:
+        {
+          return Row(
+            children: children,
+          );
+        }
+      default:
+        {
+          return Stack(
+            children: children,
+          );
+        }
+    }
+  }
+
+  Widget getCentralDot() {
+    if (widget.displayCentralDot) {
+      return Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          color: _color,
+          shape: BoxShape.circle,
+          border: Border.all(
+            width: 3,
+            color: HSLColor.fromColor(_color)
+                .withLightness(
+                  _lightnessController.value * 4 / 5,
+                )
+                .toColor(),
+          ),
+        ),
+      );
+    }
+    return const SizedBox();
+  }
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: widget.size.width,
-      height: widget.size.height,
-      child: Stack(
-        children: <Widget>[
-          _HuePicker(
-            hue: _hueController.value,
-            size: widget.size,
-            strokeWidth: widget.strokeWidth,
-            thumbSize: widget.thumbSize,
-            onEnded: _onEnded,
-            onChanged: (hue) {
-              _hueController.value = hue;
-            },
-          ),
-          AnimatedBuilder(
-            animation: _hueController,
-            builder: (context, child) {
-              return AnimatedBuilder(
-                animation: _lightnessController,
-                builder: (context, _) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        widget.colorCodeBuilder != null
-                            ? widget.colorCodeBuilder!(context, _color)
-                            : Text(
-                                '#${_color.value.toRadixString(16).substring(2)}',
-                                style: widget.textStyle,
-                              ),
-                        const SizedBox(height: 16),
-                        Container(
-                          width: 64,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            color: _color,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              width: 3,
-                              color: HSLColor.fromColor(_color)
-                                  .withLightness(
-                                    _lightnessController.value * 4 / 5,
-                                  )
-                                  .toColor(),
+      width: widget.colorPickerLayout == ColorPickerLayout.row
+          ? widget.size.width
+          : widget.size.width / 2,
+      height: widget.colorPickerLayout == ColorPickerLayout.column
+          ? widget.size.height
+          : widget.size.height / 2,
+      child: AnimatedBuilder(
+        animation: _hueController,
+        builder: (context, child) {
+          return AnimatedBuilder(
+            animation: _lightnessController,
+            builder: (context, _) {
+              return getLayoutWidget(<Widget>[
+                _HuePicker(
+                  hue: _hueController.value,
+                  size: widget.colorPickerLayout == ColorPickerLayout.stack
+                      ? widget.size
+                      : widget.size / 2,
+                  strokeWidth: widget.strokeWidth,
+                  thumbSize: widget.thumbSize,
+                  onEnded: _onEnded,
+                  onChanged: (hue) {
+                    _hueController.value = hue;
+                  },
+                ),
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      widget.colorCodeBuilder != null
+                          ? widget.colorCodeBuilder!(context, _color)
+                          : Text(
+                              '#${_color.value.toRadixString(16).substring(2)}',
+                              style: widget.textStyle,
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        _LightnessSlider(
-                          width: 140,
-                          thumbSize: 26,
-                          hue: _hueController.value,
-                          lightness: _lightnessController.value,
-                          onEnded: _onEnded,
-                          onChanged: (lightness) {
-                            _lightnessController.value = lightness;
-                          },
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              );
+                      const SizedBox(height: 16),
+                      getCentralDot(),
+                      const SizedBox(height: 16),
+                      _LightnessSlider(
+                        width: 140,
+                        thumbSize: 26,
+                        hue: _hueController.value,
+                        lightness: _lightnessController.value,
+                        onEnded: _onEnded,
+                        onChanged: (lightness) {
+                          _lightnessController.value = lightness;
+                        },
+                      ),
+                    ],
+                  ),
+                )
+              ]);
             },
-          ),
-        ],
+          );
+        },
       ),
     );
   }
